@@ -148,8 +148,7 @@ const saveToHistory = (name) => {
 };
 
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
-  const [draft, setDraft]     = useState('');
-  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
 
   const remaining = shopping.filter(s => !s.done).length;
@@ -216,8 +215,6 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submit()}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setTimeout(() => setFocused(false), 150)}
                 placeholder="Add an item"
                 style={{
                   width: '100%', height: 50, borderRadius: 14, border: '1px solid var(--line)',
@@ -228,7 +225,7 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
             </div>
             {draft.trim() && <Btn onClick={submit}>Add</Btn>}
           </div>
-          {focused && suggestions.length > 0 && (
+          {suggestions.length > 0 && (
             <div style={{
               marginTop: 6, background: 'var(--surface)', border: '1px solid var(--line)',
               borderRadius: 14, overflow: 'hidden',
