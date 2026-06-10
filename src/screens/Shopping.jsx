@@ -1,16 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { CATEGORY_ORDER } from '../data';
 import { Icon } from '../icons';
 import { Header, Btn, Card } from '../ui';
-
-const COMMON_ITEMS = [
-  'Milk', 'Eggs', 'Butter', 'Bread', 'Cheese', 'Yogurt', 'Cream',
-  'Chicken', 'Salmon', 'Beef mince', 'Tofu', 'Bacon',
-  'Pasta', 'Rice', 'Oats', 'Flour', 'Olive oil', 'Honey',
-  'Tomatoes', 'Onions', 'Garlic', 'Spinach', 'Potatoes', 'Carrots',
-  'Lemon', 'Lime', 'Apples', 'Bananas', 'Avocado', 'Cucumber',
-  'Coffee', 'Tea', 'Orange juice', 'Sparkling water',
-];
 
 function Checkbox({ done }) {
   return (
@@ -60,9 +51,12 @@ function ShopRow({ item, onToggle, last }) {
 }
 
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
-  const [draft, setDraft]   = useState('');
-  const [focused, setFocused] = useState(false);
-  const inputRef = useRef(null);
+  const [draft, setDraft]           = useState('');
+  const [focused, setFocused]       = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const inputRef  = useRef(null);
+  const debounceRef = useRef(null);
 
   const remaining = shopping.filter(s => !s.done).length;
   const doneCount = shopping.length - remaining;
@@ -73,24 +67,41 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
     .filter(g => g.items.length > 0);
 
   const onList = new Set(shopping.map(s => s.name.toLowerCase()));
-  const suggestions = draft.trim().length > 0
-    ? [...new Set([
-        ...(fridge || []).map(i => i.name),
-        ...COMMON_ITEMS,
-      ])]
-        .filter(s => s.toLowerCase().includes(draft.toLowerCase().trim()) && s.toLowerCase() !== draft.toLowerCase().trim())
-        .filter(s => !onList.has(s.toLowerCase()))
-        .slice(0, 6)
-    : [];
+
+  useEffect(() => {
+    const q = draft.trim();
+    if (!q) { setSuggestions([]); setLoading(false); return; }
+
+    setLoading(true);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/suggest', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: q, fridge: (fridge || []).map(i => i.name) }),
+        });
+        const { suggestions: raw = [] } = await res.json();
+        setSuggestions(raw.filter(s => !onList.has(s.toLowerCase()) && s.toLowerCase() !== q.toLowerCase()));
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [draft]);
 
   const pick = (name) => {
     onAddShop(name);
     setDraft('');
+    setSuggestions([]);
     inputRef.current?.blur();
   };
 
   const submit = () => {
-    if (draft.trim()) { onAddShop(draft.trim()); setDraft(''); }
+    if (draft.trim()) { onAddShop(draft.trim()); setDraft(''); setSuggestions([]); }
   };
 
   return (
@@ -128,13 +139,18 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
             </div>
             {draft.trim() && <Btn onClick={submit}>Add</Btn>}
           </div>
-          {focused && suggestions.length > 0 && (
+          {focused && (loading || suggestions.length > 0) && (
             <div style={{
               marginTop: 6, background: 'var(--surface)', border: '1px solid var(--line)',
               borderRadius: 14, overflow: 'hidden',
               boxShadow: '0 4px 16px rgba(0,0,0,.08)',
             }}>
-              {suggestions.map((s, i) => (
+              {loading && suggestions.length === 0 ? (
+                <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ink-3)', fontSize: 14 }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 99, border: '2px solid var(--line)', borderTopColor: 'var(--green)', animation: 'cmf-spin 0.7s linear infinite', flexShrink: 0 }} />
+                  Suggesting…
+                </div>
+              ) : suggestions.map((s, i) => (
                 <button
                   key={s}
                   onMouseDown={() => pick(s)}
