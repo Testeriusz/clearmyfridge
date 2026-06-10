@@ -138,6 +138,15 @@ function ShopRow({ item, onToggle, last }) {
   );
 }
 
+const HISTORY_KEY = 'cmf_shop_history';
+const getHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; } };
+const saveToHistory = (name) => {
+  try {
+    const h = getHistory().filter(x => x.toLowerCase() !== name.toLowerCase());
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([name, ...h].slice(0, 200)));
+  } catch {}
+};
+
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
   const [draft, setDraft]     = useState('');
   const [focused, setFocused] = useState(false);
@@ -151,26 +160,37 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
     .map(cat => ({ cat, items: shopping.filter(s => s.cat === cat) }))
     .filter(g => g.items.length > 0);
 
-  const onList = new Set(shopping.map(s => s.name.toLowerCase()));
+  const onList     = new Set(shopping.map(s => s.name.toLowerCase()));
   const fridgeNames = new Set((fridge || []).map(i => i.name.toLowerCase()));
 
-  const suggestions = draft.trim().length > 0
-    ? [...new Set([...(fridge || []).map(i => i.name), ...GROCERY_LIST])]
-        .filter(s => {
-          const sl = s.toLowerCase(), dl = draft.toLowerCase().trim();
-          return sl.includes(dl) && sl !== dl && !onList.has(sl);
-        })
-        .slice(0, 8)
-    : [];
+  const suggestions = (() => {
+    const q = draft.trim().toLowerCase();
+    if (!q) return [];
+    const history  = getHistory();
+    const matches  = (s) => s.toLowerCase().includes(q) && s.toLowerCase() !== q && !onList.has(s.toLowerCase());
+    const seen     = new Set();
+    const result   = [];
+    for (const s of [...history, ...(fridge || []).map(i => i.name), ...GROCERY_LIST]) {
+      if (matches(s) && !seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); result.push(s); }
+      if (result.length >= 8) break;
+    }
+    return result;
+  })();
+
+  const historySet = new Set(getHistory().map(h => h.toLowerCase()));
 
   const pick = (name) => {
+    saveToHistory(name);
     onAddShop(name);
     setDraft('');
     inputRef.current?.blur();
   };
 
   const submit = () => {
-    if (draft.trim()) { onAddShop(draft.trim()); setDraft(''); }
+    if (!draft.trim()) return;
+    saveToHistory(draft.trim());
+    onAddShop(draft.trim());
+    setDraft('');
   };
 
   return (
@@ -228,11 +248,12 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
                 >
                   <Icon name="plus" size={16} color="var(--ink-3)" strokeWidth={2.2} />
                   <span style={{ fontSize: 15, fontWeight: 550, color: 'var(--ink)' }}>{s}</span>
-                  {fridgeNames.has(s.toLowerCase()) && (
-                    <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 650, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '3px 8px', borderRadius: 99 }}>
-                      In fridge
-                    </span>
-                  )}
+                  {fridgeNames.has(s.toLowerCase())
+                    ? <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 650, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '3px 8px', borderRadius: 99 }}>In fridge</span>
+                    : historySet.has(s.toLowerCase())
+                      ? <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 650, color: 'var(--ink-3)', background: 'var(--surface-2)', padding: '3px 8px', borderRadius: 99 }}>Recent</span>
+                      : null
+                  }
                 </button>
               ))}
             </div>
