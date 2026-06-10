@@ -230,13 +230,16 @@ function AuthedApp({ user }) {
 
   const addShop = async (name) => {
     const cat = guessCat(name);
+    const tempId = `temp-${Date.now()}`;
+    setShopping(s => [...s, { id: tempId, name, cat, source: 'manual', done: false }]);
     const { data, error } = await supabase.from('shopping_items')
       .insert({ user_id: user.id, name, category: cat, done: false })
       .select('id').single();
     if (!error && data) {
-      setShopping(s => [...s, { id: data.id, name, cat, source: 'manual', done: false }]);
+      setShopping(s => s.map(i => i.id === tempId ? { ...i, id: data.id } : i));
     } else {
-      showToast('Could not add item'); console.error(error);
+      setShopping(s => s.filter(i => i.id !== tempId));
+      showToast('Could not save item'); console.error(error);
     }
   };
 
