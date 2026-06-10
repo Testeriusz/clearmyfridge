@@ -3,9 +3,9 @@ import {
   FRIDGE_SEED, GENERATED_SEED, SAVED_SEED, SHOPPING_SEED, ALERTS_SEED,
 } from './data';
 import { TabBar, Toast } from './ui';
-import HomeScreen               from './screens/Home';
+import HomeScreen                            from './screens/Home';
 import FridgeScreen, { ItemForm, ItemDetail } from './screens/Fridge';
-import RecipesScreen            from './screens/Recipes';
+import RecipesScreen, { RecipeDetail }        from './screens/Recipes';
 import ShoppingScreen   from './screens/Shopping';
 import AlertsScreen     from './screens/Alerts';
 import SettingsScreen   from './screens/Settings';
@@ -205,6 +205,14 @@ export default function App() {
         onDelete={deleteItem}
         onCookWith={cookWith}
         onRebuy={rebuy}
+      />
+      <RecipeDetail
+        recipe={recipe}
+        fridge={fridge}
+        saved={recipe ? savedIds.has(recipe.id) : false}
+        onClose={() => setRecipe(null)}
+        onSave={toggleSave}
+        onAddMissing={addMissing}
       />
 
       {settingsOpen && (
