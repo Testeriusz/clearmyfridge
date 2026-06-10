@@ -1,7 +1,95 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { CATEGORY_ORDER } from '../data';
 import { Icon } from '../icons';
 import { Header, Btn, Card } from '../ui';
+
+const GROCERY_LIST = [
+  // Dairy
+  'Milk', 'Semi-skimmed milk', 'Oat milk', 'Almond milk', 'Soy milk', 'Coconut milk',
+  'Butter', 'Salted butter', 'Unsalted butter',
+  'Cheddar', 'Mozzarella', 'Parmesan', 'Feta', 'Brie', 'Cream cheese', 'Cottage cheese', 'Goat cheese',
+  'Yogurt', 'Greek yogurt', 'Sour cream', 'Crème fraîche',
+  'Single cream', 'Double cream', 'Whipping cream',
+  'Eggs', 'Free-range eggs',
+  // Produce – vegetables
+  'Tomatoes', 'Cherry tomatoes', 'Beef tomatoes', 'Tinned tomatoes',
+  'Onions', 'Red onions', 'Spring onions', 'Shallots',
+  'Garlic', 'Ginger',
+  'Potatoes', 'Sweet potatoes', 'New potatoes',
+  'Carrots', 'Parsnips', 'Beetroot',
+  'Broccoli', 'Cauliflower', 'Cabbage', 'Brussels sprouts', 'Kale', 'Spinach', 'Rocket', 'Lettuce', 'Watercress',
+  'Courgette', 'Aubergine', 'Pepper', 'Red pepper', 'Yellow pepper',
+  'Mushrooms', 'Chestnut mushrooms', 'Portobello mushrooms',
+  'Cucumber', 'Celery', 'Leek', 'Fennel', 'Asparagus', 'Green beans', 'Peas', 'Sweetcorn',
+  'Avocado', 'Edamame',
+  'Chilli', 'Red chilli', 'Green chilli',
+  // Produce – fruit
+  'Apples', 'Bananas', 'Oranges', 'Lemons', 'Limes', 'Grapefruit',
+  'Strawberries', 'Raspberries', 'Blueberries', 'Blackberries',
+  'Grapes', 'Melon', 'Watermelon', 'Pineapple', 'Mango', 'Papaya',
+  'Peaches', 'Plums', 'Nectarines', 'Pears', 'Kiwi',
+  'Dates', 'Figs',
+  // Protein – meat
+  'Chicken breast', 'Chicken thighs', 'Chicken wings', 'Whole chicken',
+  'Beef mince', 'Steak', 'Beef stew meat',
+  'Pork mince', 'Pork chops', 'Bacon', 'Pancetta', 'Prosciutto', 'Ham',
+  'Lamb mince', 'Lamb chops', 'Lamb shoulder',
+  'Sausages', 'Chorizo', 'Salami',
+  'Turkey mince', 'Turkey breast',
+  // Protein – fish & seafood
+  'Salmon', 'Salmon fillet', 'Smoked salmon',
+  'Cod', 'Haddock', 'Sea bass', 'Tuna steak',
+  'Tinned tuna', 'Tinned sardines', 'Tinned mackerel',
+  'Prawns', 'King prawns', 'Shrimp',
+  'Mussels', 'Squid',
+  // Protein – plant
+  'Tofu', 'Firm tofu', 'Silken tofu',
+  'Tempeh', 'Halloumi', 'Quorn mince', 'Quorn fillets',
+  'Chickpeas', 'Tinned chickpeas', 'Lentils', 'Red lentils',
+  'Black beans', 'Kidney beans', 'Butter beans', 'Cannellini beans',
+  // Pantry – grains & pasta
+  'Pasta', 'Spaghetti', 'Penne', 'Fusilli', 'Tagliatelle', 'Lasagne sheets', 'Orzo',
+  'Rice', 'Basmati rice', 'Brown rice', 'Risotto rice', 'Jasmine rice',
+  'Bread', 'Sourdough', 'Baguette', 'Pitta bread', 'Tortillas', 'Wraps', 'Naan bread', 'Bagels',
+  'Oats', 'Granola', 'Cornflakes', 'Muesli',
+  'Couscous', 'Quinoa', 'Bulgur wheat', 'Polenta',
+  'Noodles', 'Rice noodles', 'Egg noodles', 'Udon noodles',
+  // Pantry – oils, sauces & condiments
+  'Olive oil', 'Extra virgin olive oil', 'Vegetable oil', 'Coconut oil', 'Sesame oil',
+  'Soy sauce', 'Fish sauce', 'Worcestershire sauce', 'Hot sauce', 'Sriracha',
+  'Ketchup', 'Mustard', 'Dijon mustard', 'Mayonnaise', 'Horseradish',
+  'Balsamic vinegar', 'White wine vinegar', 'Apple cider vinegar',
+  'Tomato purée', 'Tomato pasta sauce',
+  'Pesto', 'Tahini', 'Hummus',
+  'Honey', 'Maple syrup', 'Jam', 'Peanut butter', 'Almond butter',
+  // Pantry – spices & baking
+  'Salt', 'Black pepper', 'Paprika', 'Smoked paprika', 'Cumin', 'Coriander',
+  'Turmeric', 'Chilli flakes', 'Cayenne pepper', 'Oregano', 'Thyme', 'Rosemary',
+  'Cinnamon', 'Nutmeg', 'Cardamom', 'Garam masala', 'Curry powder',
+  'Flour', 'Self-raising flour', 'Bread flour', 'Cornflour',
+  'Sugar', 'Caster sugar', 'Brown sugar', 'Icing sugar',
+  'Baking powder', 'Baking soda', 'Yeast', 'Vanilla extract',
+  'Dark chocolate', 'Cocoa powder',
+  // Pantry – tins & jars
+  'Chopped tomatoes', 'Coconut cream', 'Coconut milk tinned',
+  'Vegetable stock', 'Chicken stock', 'Beef stock', 'Stock cubes',
+  'Tinned sweetcorn', 'Tinned peas',
+  // Drinks
+  'Coffee', 'Ground coffee', 'Instant coffee', 'Coffee beans',
+  'Tea', 'Green tea', 'Herbal tea',
+  'Orange juice', 'Apple juice', 'Oat milk', 'Sparkling water', 'Still water',
+  'Wine', 'Red wine', 'White wine', 'Beer',
+  // Snacks & other
+  'Crisps', 'Nuts', 'Almonds', 'Cashews', 'Walnuts', 'Peanuts',
+  'Dark chocolate bar', 'Milk chocolate bar',
+  'Rice cakes', 'Crackers', 'Breadsticks',
+  'Popcorn',
+  // Frozen
+  'Frozen peas', 'Frozen spinach', 'Frozen sweetcorn', 'Frozen berries',
+  'Frozen chips', 'Frozen pizza',
+  // Fresh herbs
+  'Basil', 'Parsley', 'Coriander', 'Mint', 'Dill', 'Chives', 'Tarragon',
+];
 
 function Checkbox({ done }) {
   return (
@@ -51,12 +139,9 @@ function ShopRow({ item, onToggle, last }) {
 }
 
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
-  const [draft, setDraft]           = useState('');
-  const [focused, setFocused]       = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const inputRef  = useRef(null);
-  const debounceRef = useRef(null);
+  const [draft, setDraft]     = useState('');
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
 
   const remaining = shopping.filter(s => !s.done).length;
   const doneCount = shopping.length - remaining;
@@ -67,41 +152,25 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
     .filter(g => g.items.length > 0);
 
   const onList = new Set(shopping.map(s => s.name.toLowerCase()));
+  const fridgeNames = new Set((fridge || []).map(i => i.name.toLowerCase()));
 
-  useEffect(() => {
-    const q = draft.trim();
-    if (!q) { setSuggestions([]); setLoading(false); return; }
-
-    setLoading(true);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/suggest', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ query: q, fridge: (fridge || []).map(i => i.name) }),
-        });
-        const { suggestions: raw = [] } = await res.json();
-        setSuggestions(raw.filter(s => !onList.has(s.toLowerCase()) && s.toLowerCase() !== q.toLowerCase()));
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
-
-    return () => clearTimeout(debounceRef.current);
-  }, [draft]);
+  const suggestions = draft.trim().length > 0
+    ? [...new Set([...(fridge || []).map(i => i.name), ...GROCERY_LIST])]
+        .filter(s => {
+          const sl = s.toLowerCase(), dl = draft.toLowerCase().trim();
+          return sl.includes(dl) && sl !== dl && !onList.has(sl);
+        })
+        .slice(0, 8)
+    : [];
 
   const pick = (name) => {
     onAddShop(name);
     setDraft('');
-    setSuggestions([]);
     inputRef.current?.blur();
   };
 
   const submit = () => {
-    if (draft.trim()) { onAddShop(draft.trim()); setDraft(''); setSuggestions([]); }
+    if (draft.trim()) { onAddShop(draft.trim()); setDraft(''); }
   };
 
   return (
@@ -139,18 +208,13 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
             </div>
             {draft.trim() && <Btn onClick={submit}>Add</Btn>}
           </div>
-          {focused && (loading || suggestions.length > 0) && (
+          {focused && suggestions.length > 0 && (
             <div style={{
               marginTop: 6, background: 'var(--surface)', border: '1px solid var(--line)',
               borderRadius: 14, overflow: 'hidden',
               boxShadow: '0 4px 16px rgba(0,0,0,.08)',
             }}>
-              {loading && suggestions.length === 0 ? (
-                <div style={{ padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ink-3)', fontSize: 14 }}>
-                  <div style={{ width: 16, height: 16, borderRadius: 99, border: '2px solid var(--line)', borderTopColor: 'var(--green)', animation: 'cmf-spin 0.7s linear infinite', flexShrink: 0 }} />
-                  Suggesting…
-                </div>
-              ) : suggestions.map((s, i) => (
+              {suggestions.map((s, i) => (
                 <button
                   key={s}
                   onMouseDown={() => pick(s)}
@@ -164,7 +228,7 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
                 >
                   <Icon name="plus" size={16} color="var(--ink-3)" strokeWidth={2.2} />
                   <span style={{ fontSize: 15, fontWeight: 550, color: 'var(--ink)' }}>{s}</span>
-                  {(fridge || []).some(f => f.name.toLowerCase() === s.toLowerCase()) && (
+                  {fridgeNames.has(s.toLowerCase()) && (
                     <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 650, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '3px 8px', borderRadius: 99 }}>
                       In fridge
                     </span>
