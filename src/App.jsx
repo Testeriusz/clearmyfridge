@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  FRIDGE_SEED, GENERATED_SEED, SAVED_SEED, SHOPPING_SEED, ALERTS_SEED,
+  GENERATED_SEED, SAVED_SEED, SHOPPING_SEED, ALERTS_SEED,
 } from './data';
 import { supabase } from './supabaseClient';
 import { TabBar, Toast } from './ui';
@@ -54,9 +54,10 @@ export default function App() {
 
 function AuthedApp({ user }) {
   const [onboarded, setOnboarded]       = useState(() => LS.get('onboarded', false));
-  const [tab, setTab]                   = useState('home');
-  const [fridge, setFridge]             = useState(FRIDGE_SEED);
+  const [tab, setTab]                   = useState(() => LS.get('tab', 'home'));
+  const [fridge, setFridge]             = useState([]);
   const [shopping, setShopping]         = useState(SHOPPING_SEED);
+  const pendingDeleteRef                = useRef(null);
   const [saved, setSaved]               = useState(() => LS.get('saved', SAVED_SEED));
   const [generated]                     = useState(GENERATED_SEED);
   const [generating, setGenerating]     = useState(false);
@@ -72,8 +73,44 @@ function AuthedApp({ user }) {
   const [toast, setToast]               = useState(null);
   const toastTimer                      = useRef(null);
 
+  useEffect(() => LS.set('tab', tab), [tab]);
   useEffect(() => LS.set('saved', saved), [saved]);
   useEffect(() => LS.set('filters', filters), [filters]);
+
+  useEffect(() => {
+    supabase
+      .from('fridge_items')
+      .select('id, name, qty, category, expiry_date')
+      .order('expiry_date', { ascending: true, nullsLast: true })
+      .then(({ data, error }) => {
+        if (!error && data) setFridge(data.map(rowToItem));
+      });
+  }, []);
+
+  function rowToItem(row) {
+    return {
+      id:    row.id,
+      name:  row.name,
+      qty:   row.qty ?? '1',
+      cat:   row.category ?? 'Other',
+      days:  daysFromDate(row.expiry_date),
+      added: 0,
+    };
+  }
+
+  function daysFromDate(dateStr) {
+    if (!dateStr) return 7;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((new Date(dateStr) - today) / 86400000);
+  }
+
+  function dateFromDaysOffset(days) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  }
 
   const showToast = (msg, onUndo) => {
     clearTimeout(toastTimer.current);
@@ -82,13 +119,31 @@ function AuthedApp({ user }) {
   };
 
   // fridge actions
-  const saveItem = ({ name, qty, cat, days }) => {
+  const saveItem = async ({ name, qty, cat, days }) => {
+    const expiry_date = dateFromDaysOffset(days);
     if (itemForm.editing) {
-      setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days } : i));
-      showToast('Item updated');
+      const { error } = await supabase
+        .from('fridge_items')
+        .update({ name, qty, category: cat, expiry_date })
+        .eq('id', itemForm.editing.id);
+      if (!error) {
+        setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days } : i));
+        showToast('Item updated');
+      } else {
+        showToast('Failed to update item');
+      }
     } else {
-      setFridge(f => [{ id: 'f' + Date.now(), name, qty, cat, days, added: 0 }, ...f]);
-      showToast(`${name} added to your fridge`);
+      const { data, error } = await supabase
+        .from('fridge_items')
+        .insert({ user_id: user.id, name, qty, category: cat, expiry_date })
+        .select('id')
+        .single();
+      if (!error && data) {
+        setFridge(f => [{ id: data.id, name, qty, cat, days, added: 0 }, ...f]);
+        showToast(`${name} added to your fridge`);
+      } else {
+        showToast('Failed to add item');
+      }
     }
     setItemForm({ open: false, editing: null });
   };
@@ -96,8 +151,23 @@ function AuthedApp({ user }) {
   const deleteItem = (item) => {
     setDetailItem(null);
     setFridge(f => f.filter(i => i.id !== item.id));
+
+    if (pendingDeleteRef.current) {
+      clearTimeout(pendingDeleteRef.current.timer);
+      supabase.from('fridge_items').delete().eq('id', pendingDeleteRef.current.id);
+    }
+
+    const timer = setTimeout(() => {
+      supabase.from('fridge_items').delete().eq('id', item.id);
+      pendingDeleteRef.current = null;
+    }, 5000);
+
+    pendingDeleteRef.current = { id: item.id, timer };
+
     showToast(`${item.name} removed`, () => {
-      setFridge(f => [item, ...f].sort((a, b) => a.days - b.days));
+      clearTimeout(timer);
+      pendingDeleteRef.current = null;
+      setFridge(f => [...f, item].sort((a, b) => a.days - b.days));
       setToast(null);
     });
   };
