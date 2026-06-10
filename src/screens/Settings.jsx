@@ -58,7 +58,7 @@ function Row({ icon, title, detail, control, chevron, tone, onClick }) {
   );
 }
 
-export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSetNotifOn, onBack, onReplay, onSignOut }) {
+export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSetNotifOn, onBack, onReplay, onSignOut, user }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 80, background: 'var(--app-bg)',
@@ -72,11 +72,14 @@ export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSet
             width: 48, height: 48, borderRadius: 99, background: 'var(--green-soft)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
-            <span style={{ fontSize: 19, fontWeight: 750, color: 'var(--green-ink)' }}>J</span>
+            {user?.user_metadata?.avatar_url
+              ? <img src={user.user_metadata.avatar_url} alt="" style={{ width: 48, height: 48, borderRadius: 99, objectFit: 'cover' }} />
+              : <span style={{ fontSize: 19, fontWeight: 750, color: 'var(--green-ink)' }}>{(user?.user_metadata?.full_name || user?.email || '?')[0].toUpperCase()}</span>
+            }
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>Jordan</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>jordan@example.com</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{user?.user_metadata?.full_name || 'You'}</div>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>{user?.email}</div>
           </div>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '4px 10px', borderRadius: 99 }}>
             Free

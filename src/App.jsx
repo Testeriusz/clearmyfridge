@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import {
   FRIDGE_SEED, GENERATED_SEED, SAVED_SEED, SHOPPING_SEED, ALERTS_SEED,
 } from './data';
+import { supabase } from './supabaseClient';
 import { TabBar, Toast } from './ui';
+import Login            from './screens/Login';
 import HomeScreen                            from './screens/Home';
 import FridgeScreen, { ItemForm, ItemDetail } from './screens/Fridge';
 import RecipesScreen, { RecipeDetail }        from './screens/Recipes';
@@ -35,6 +37,22 @@ function guessCat(name) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return null;
+  if (!session) return <Login />;
+  return <AuthedApp user={session.user} />;
+}
+
+function AuthedApp({ user }) {
   const [onboarded, setOnboarded]       = useState(() => LS.get('onboarded', false));
   const [tab, setTab]                   = useState('home');
   const [fridge, setFridge]             = useState(FRIDGE_SEED);
@@ -218,9 +236,10 @@ export default function App() {
       {settingsOpen && (
         <SettingsScreen
           {...screenProps}
+          user={user}
           onBack={() => setSettingsOpen(false)}
           onReplay={() => { setSettingsOpen(false); setOnboarded(false); }}
-          onSignOut={() => { setSettingsOpen(false); setOnboarded(false); }}
+          onSignOut={() => { setSettingsOpen(false); supabase.auth.signOut(); }}
         />
       )}
 
