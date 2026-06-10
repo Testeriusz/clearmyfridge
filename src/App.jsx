@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  GENERATED_SEED, SAVED_SEED, SHOPPING_SEED, ALERTS_SEED,
-} from './data';
+import { GENERATED_SEED } from './data';
 import { supabase } from './supabaseClient';
 import { TabBar, Toast } from './ui';
 import Login            from './screens/Login';
@@ -56,15 +54,14 @@ function AuthedApp({ user }) {
   const [onboarded, setOnboarded]       = useState(() => LS.get('onboarded', false));
   const [tab, setTab]                   = useState(() => LS.get('tab', 'home'));
   const [fridge, setFridge]             = useState([]);
-  const [shopping, setShopping]         = useState(SHOPPING_SEED);
-  const pendingDeleteRef                = useRef(null);
-  const [saved, setSaved]               = useState(() => LS.get('saved', SAVED_SEED));
+  const [shopping, setShopping]         = useState([]);
+  const [saved, setSaved]               = useState([]);
   const [generated]                     = useState(GENERATED_SEED);
   const [generating, setGenerating]     = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [filters, setFilters]           = useState(() => LS.get('filters', []));
-  const [alerts]                        = useState(ALERTS_SEED);
   const [notifOn, setNotifOn]           = useState(true);
+  const pendingDeleteRef                = useRef(null);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [itemForm, setItemForm]         = useState({ open: false, editing: null });
@@ -74,40 +71,54 @@ function AuthedApp({ user }) {
   const toastTimer                      = useRef(null);
 
   useEffect(() => LS.set('tab', tab), [tab]);
-  useEffect(() => LS.set('saved', saved), [saved]);
   useEffect(() => LS.set('filters', filters), [filters]);
 
+  // ── DB loaders ────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase
       .from('fridge_items')
       .select('id, name, qty, category, expiry_date')
       .order('expiry_date', { ascending: true, nullsLast: true })
+      .then(({ data, error }) => { if (!error && data) setFridge(data.map(rowToItem)); });
+  }, []);
+
+  useEffect(() => {
+    supabase
+      .from('shopping_items')
+      .select('id, name, category, source, done')
+      .order('created_at', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setFridge(data.map(rowToItem));
+        if (!error && data) setShopping(data.map(r => ({ ...r, cat: r.category })));
       });
   }, []);
 
-  function rowToItem(row) {
-    return {
-      id:    row.id,
-      name:  row.name,
-      qty:   row.qty ?? '1',
-      cat:   row.category ?? 'Other',
-      days:  daysFromDate(row.expiry_date),
-      added: 0,
-    };
-  }
+  useEffect(() => {
+    supabase
+      .from('saved_recipes')
+      .select('id, title, ingredients, steps, missing, macros, time_minutes, servings, tags, blurb')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data) setSaved(data.map(r => ({
+          id: r.id, title: r.title, blurb: r.blurb,
+          uses: r.ingredients || [], steps: r.steps || [],
+          missing: r.missing || [], macros: r.macros || {},
+          prep: r.time_minutes, serves: r.servings,
+          tags: r.tags || [], expiringUsed: 0,
+        })));
+      });
+  }, []);
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function rowToItem(row) {
+    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: row.category ?? 'Other', days: daysFromDate(row.expiry_date), added: 0 };
+  }
   function daysFromDate(dateStr) {
     if (!dateStr) return 7;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     return Math.round((new Date(dateStr) - today) / 86400000);
   }
-
   function dateFromDaysOffset(days) {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
+    const d = new Date(); d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
   }
@@ -118,32 +129,19 @@ function AuthedApp({ user }) {
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   };
 
-  // fridge actions
+  // ── Fridge actions ────────────────────────────────────────────────────────
   const saveItem = async ({ name, qty, cat, days }) => {
     const expiry_date = dateFromDaysOffset(days);
     if (itemForm.editing) {
-      const { error } = await supabase
-        .from('fridge_items')
-        .update({ name, qty, category: cat, expiry_date })
-        .eq('id', itemForm.editing.id);
-      if (!error) {
-        setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days } : i));
-        showToast('Item updated');
-      } else {
-        showToast('Failed to update item');
-      }
+      const { error } = await supabase.from('fridge_items')
+        .update({ name, qty, category: cat, expiry_date }).eq('id', itemForm.editing.id);
+      if (!error) { setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days } : i)); showToast('Item updated'); }
+      else showToast('Failed to update item');
     } else {
-      const { data, error } = await supabase
-        .from('fridge_items')
-        .insert({ user_id: user.id, name, qty, category: cat, expiry_date })
-        .select('id')
-        .single();
-      if (!error && data) {
-        setFridge(f => [{ id: data.id, name, qty, cat, days, added: 0 }, ...f]);
-        showToast(`${name} added to your fridge`);
-      } else {
-        showToast('Failed to add item');
-      }
+      const { data, error } = await supabase.from('fridge_items')
+        .insert({ user_id: user.id, name, qty, category: cat, expiry_date }).select('id').single();
+      if (!error && data) { setFridge(f => [{ id: data.id, name, qty, cat, days, added: 0 }, ...f]); showToast(`${name} added to your fridge`); }
+      else showToast('Failed to add item');
     }
     setItemForm({ open: false, editing: null });
   };
@@ -151,80 +149,107 @@ function AuthedApp({ user }) {
   const deleteItem = (item) => {
     setDetailItem(null);
     setFridge(f => f.filter(i => i.id !== item.id));
-
     if (pendingDeleteRef.current) {
       clearTimeout(pendingDeleteRef.current.timer);
       supabase.from('fridge_items').delete().eq('id', pendingDeleteRef.current.id);
     }
-
-    const timer = setTimeout(() => {
-      supabase.from('fridge_items').delete().eq('id', item.id);
-      pendingDeleteRef.current = null;
-    }, 5000);
-
+    const timer = setTimeout(() => { supabase.from('fridge_items').delete().eq('id', item.id); pendingDeleteRef.current = null; }, 5000);
     pendingDeleteRef.current = { id: item.id, timer };
-
     showToast(`${item.name} removed`, () => {
-      clearTimeout(timer);
-      pendingDeleteRef.current = null;
-      setFridge(f => [...f, item].sort((a, b) => a.days - b.days));
-      setToast(null);
+      clearTimeout(timer); pendingDeleteRef.current = null;
+      setFridge(f => [...f, item].sort((a, b) => a.days - b.days)); setToast(null);
     });
   };
 
   const editItem = (item) => { setDetailItem(null); setItemForm({ open: true, editing: item }); };
   const cookWith = ()     => { setDetailItem(null); setRecipe(null); setTab('recipes'); };
 
-  // recipe actions
+  // ── Recipe actions ────────────────────────────────────────────────────────
   const generate = () => {
     setGenerating(true); setHasGenerated(false);
     setTimeout(() => { setGenerating(false); setHasGenerated(true); }, 1700);
   };
 
-  const toggleFilter = (d) =>
-    setFilters(fs => fs.includes(d) ? fs.filter(x => x !== d) : [...fs, d]);
+  const toggleFilter = (d) => setFilters(fs => fs.includes(d) ? fs.filter(x => x !== d) : [...fs, d]);
 
-  const toggleSave = (r) => {
-    setSaved(s => {
-      if (s.find(x => x.id === r.id)) { showToast('Removed from saved'); return s.filter(x => x.id !== r.id); }
-      if (s.length >= 20) { showToast('Saved is full (20 max)'); return s; }
-      showToast('Recipe saved'); return [r, ...s];
-    });
+  const toggleSave = async (r) => {
+    if (saved.find(x => x.id === r.id)) {
+      const { error } = await supabase.from('saved_recipes').delete().eq('id', r.id);
+      if (!error) { setSaved(s => s.filter(x => x.id !== r.id)); showToast('Removed from saved'); }
+    } else {
+      if (saved.length >= 20) { showToast('Saved is full (20 max)'); return; }
+      const { data, error } = await supabase.from('saved_recipes')
+        .insert({ user_id: user.id, title: r.title, blurb: r.blurb, ingredients: r.uses || [], steps: r.steps || [], missing: r.missing || [], macros: r.macros, time_minutes: r.prep, servings: r.serves, tags: r.tags || [] })
+        .select('id').single();
+      if (!error && data) { setSaved(s => [{ ...r, id: data.id }, ...s]); showToast('Recipe saved'); }
+    }
   };
 
   const openRecipeById = (id) => {
-    const r = [...generated, ...saved, ...GENERATED_SEED, ...SAVED_SEED].find(x => x.id === id);
+    const r = [...generated, ...saved].find(x => x.id === id);
     if (r) setRecipe(r);
   };
 
-  const addMissing = (r) => {
+  // ── Shopping actions ──────────────────────────────────────────────────────
+  const addMissing = async (r) => {
     const existing = new Set(shopping.map(s => s.name.toLowerCase()));
-    const toAdd = r.missing
-      .filter(m => !existing.has(m.toLowerCase()))
-      .map(m => ({ id: 'sh' + Date.now() + m, name: m, cat: guessCat(m), source: 'ai', done: false }));
-    setShopping(s => [...s, ...toAdd]);
-    showToast(toAdd.length
-      ? `${toAdd.length} item${toAdd.length === 1 ? '' : 's'} added to shopping`
-      : 'Already on your list');
+    const toAdd = r.missing.filter(m => !existing.has(m.toLowerCase()));
+    if (!toAdd.length) { showToast('Already on your list'); return; }
+    const { data, error } = await supabase.from('shopping_items')
+      .insert(toAdd.map(m => ({ user_id: user.id, name: m, category: guessCat(m), source: 'ai', done: false })))
+      .select('id, name, category, source, done');
+    if (!error && data) {
+      setShopping(s => [...s, ...data.map(r => ({ ...r, cat: r.category }))]);
+      showToast(`${data.length} item${data.length === 1 ? '' : 's'} added to shopping`);
+    }
   };
 
-  const rebuy = (item) => {
+  const rebuy = async (item) => {
     setDetailItem(null);
-    setShopping(s => s.find(x => x.name.toLowerCase() === item.name.toLowerCase())
-      ? s
-      : [...s, { id: 'sh' + Date.now(), name: item.name, cat: item.cat, source: 'manual', done: false }]);
-    showToast(`${item.name} added to shopping`);
+    if (shopping.find(x => x.name.toLowerCase() === item.name.toLowerCase())) { showToast(`${item.name} already on list`); return; }
+    const { data, error } = await supabase.from('shopping_items')
+      .insert({ user_id: user.id, name: item.name, category: item.cat, source: 'manual', done: false })
+      .select('id').single();
+    if (!error && data) {
+      setShopping(s => [...s, { id: data.id, name: item.name, cat: item.cat, source: 'manual', done: false }]);
+      showToast(`${item.name} added to shopping`);
+    }
   };
 
-  // shopping actions
-  const toggleShop  = (id)   => setShopping(s => s.map(i => i.id === id ? { ...i, done: !i.done } : i));
-  const addShop     = (name) => setShopping(s => [
-    ...s, { id: 'sh' + Date.now(), name, cat: guessCat(name), source: 'manual', done: false },
-  ]);
-  const clearTicked = () => { setShopping(s => s.filter(i => !i.done)); showToast('Ticked items cleared'); };
+  const toggleShop = async (id) => {
+    const item = shopping.find(i => i.id === id);
+    if (!item) return;
+    setShopping(s => s.map(i => i.id === id ? { ...i, done: !i.done } : i));
+    await supabase.from('shopping_items').update({ done: !item.done }).eq('id', id);
+  };
+
+  const addShop = async (name) => {
+    const cat = guessCat(name);
+    const { data, error } = await supabase.from('shopping_items')
+      .insert({ user_id: user.id, name, category: cat, source: 'manual', done: false })
+      .select('id').single();
+    if (!error && data) setShopping(s => [...s, { id: data.id, name, cat, source: 'manual', done: false }]);
+  };
+
+  const clearTicked = async () => {
+    const doneIds = shopping.filter(i => i.done).map(i => i.id);
+    setShopping(s => s.filter(i => !i.done));
+    if (doneIds.length) await supabase.from('shopping_items').delete().in('id', doneIds);
+    showToast('Ticked items cleared');
+  };
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+  const alerts = Object.values(
+    fridge.filter(i => i.days <= 3).reduce((acc, item) => {
+      const key = item.days;
+      if (!acc[key]) acc[key] = { id: `alert-${key}`, items: [], days: key, when: key < 0 ? 'Expired' : key === 0 ? 'Today' : key === 1 ? 'Tomorrow' : `In ${key} days`, recipeId: null, read: false };
+      acc[key].items.push(item.name);
+      return acc;
+    }, {})
+  ).sort((a, b) => a.days - b.days);
 
   const savedIds   = new Set(saved.map(r => r.id));
-  const alertCount = alerts.filter(a => !a.read).length;
+  const alertCount = alerts.length;
 
   const finishOnboarding = () => { setOnboarded(true); LS.set('onboarded', true); setTab('fridge'); };
 
