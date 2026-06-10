@@ -85,10 +85,10 @@ function AuthedApp({ user }) {
   useEffect(() => {
     supabase
       .from('shopping_items')
-      .select('id, name, category, source, done')
+      .select('id, name, category, done')
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setShopping(data.map(r => ({ ...r, cat: r.category })));
+        if (!error && data) setShopping(data.map(r => ({ ...r, cat: r.category, source: 'manual' })));
       });
   }, []);
 
@@ -196,11 +196,13 @@ function AuthedApp({ user }) {
     const toAdd = r.missing.filter(m => !existing.has(m.toLowerCase()));
     if (!toAdd.length) { showToast('Already on your list'); return; }
     const { data, error } = await supabase.from('shopping_items')
-      .insert(toAdd.map(m => ({ user_id: user.id, name: m, category: guessCat(m), source: 'ai', done: false })))
-      .select('id, name, category, source, done');
+      .insert(toAdd.map(m => ({ user_id: user.id, name: m, category: guessCat(m), done: false })))
+      .select('id, name, category, done');
     if (!error && data) {
-      setShopping(s => [...s, ...data.map(r => ({ ...r, cat: r.category }))]);
+      setShopping(s => [...s, ...data.map(row => ({ ...row, cat: row.category, source: 'ai' }))]);
       showToast(`${data.length} item${data.length === 1 ? '' : 's'} added to shopping`);
+    } else {
+      showToast('Could not add items'); console.error(error);
     }
   };
 
@@ -208,11 +210,13 @@ function AuthedApp({ user }) {
     setDetailItem(null);
     if (shopping.find(x => x.name.toLowerCase() === item.name.toLowerCase())) { showToast(`${item.name} already on list`); return; }
     const { data, error } = await supabase.from('shopping_items')
-      .insert({ user_id: user.id, name: item.name, category: item.cat, source: 'manual', done: false })
+      .insert({ user_id: user.id, name: item.name, category: item.cat, done: false })
       .select('id').single();
     if (!error && data) {
       setShopping(s => [...s, { id: data.id, name: item.name, cat: item.cat, source: 'manual', done: false }]);
       showToast(`${item.name} added to shopping`);
+    } else {
+      showToast('Could not add item'); console.error(error);
     }
   };
 
@@ -220,21 +224,29 @@ function AuthedApp({ user }) {
     const item = shopping.find(i => i.id === id);
     if (!item) return;
     setShopping(s => s.map(i => i.id === id ? { ...i, done: !i.done } : i));
-    await supabase.from('shopping_items').update({ done: !item.done }).eq('id', id);
+    const { error } = await supabase.from('shopping_items').update({ done: !item.done }).eq('id', id);
+    if (error) { setShopping(s => s.map(i => i.id === id ? { ...i, done: item.done } : i)); console.error(error); }
   };
 
   const addShop = async (name) => {
     const cat = guessCat(name);
     const { data, error } = await supabase.from('shopping_items')
-      .insert({ user_id: user.id, name, category: cat, source: 'manual', done: false })
+      .insert({ user_id: user.id, name, category: cat, done: false })
       .select('id').single();
-    if (!error && data) setShopping(s => [...s, { id: data.id, name, cat, source: 'manual', done: false }]);
+    if (!error && data) {
+      setShopping(s => [...s, { id: data.id, name, cat, source: 'manual', done: false }]);
+    } else {
+      showToast('Could not add item'); console.error(error);
+    }
   };
 
   const clearTicked = async () => {
     const doneIds = shopping.filter(i => i.done).map(i => i.id);
     setShopping(s => s.filter(i => !i.done));
-    if (doneIds.length) await supabase.from('shopping_items').delete().in('id', doneIds);
+    if (doneIds.length) {
+      const { error } = await supabase.from('shopping_items').delete().in('id', doneIds);
+      if (error) { console.error(error); }
+    }
     showToast('Ticked items cleared');
   };
 
