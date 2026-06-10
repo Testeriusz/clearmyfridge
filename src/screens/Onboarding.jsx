@@ -3,9 +3,9 @@ import { Icon, GoogleG } from '../icons';
 import { Btn, ghostBtn } from '../ui';
 
 const STEPS = [
-  { icon: 'fridge', title: 'Add what's in your fridge',    body: 'Scan a barcode or type it in. ClearMyFridge keeps a calm, clear list of everything you have at home.' },
-  { icon: 'bell',   title: 'Get a gentle expiry reminder', body: 'Each morning we'll tell you what needs using soon — so good food never gets forgotten at the back of the fridge.' },
-  { icon: 'bowl',   title: 'Cook with what you have',      body: 'Generate three recipes from exactly what's in your fridge, with the nutrition shown up front. No waste, no guesswork.' },
+  { icon: 'fridge', title: "Add what's in your fridge",    body: 'Scan a barcode or type it in. ClearMyFridge keeps a calm, clear list of everything you have at home.' },
+  { icon: 'bell',   title: 'Get a gentle expiry reminder', body: "Each morning we'll tell you what needs using soon — so good food never gets forgotten at the back of the fridge." },
+  { icon: 'bowl',   title: 'Cook with what you have',      body: "Generate three recipes from exactly what's in your fridge, with the nutrition shown up front. No waste, no guesswork." },
 ];
 
 function Overlay({ children }) {
