@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { GENERATED_SEED } from './data';
+
 import { supabase } from './supabaseClient';
 import { TabBar, Toast } from './ui';
 import Login            from './screens/Login';
@@ -56,7 +56,7 @@ function AuthedApp({ user }) {
   const [fridge, setFridge]             = useState([]);
   const [shopping, setShopping]         = useState([]);
   const [saved, setSaved]               = useState([]);
-  const [generated]                     = useState(GENERATED_SEED);
+  const [generated, setGenerated]       = useState([]);
   const [generating, setGenerating]     = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [filters, setFilters]           = useState(() => LS.get('filters', []));
@@ -169,9 +169,30 @@ function AuthedApp({ user }) {
   const cookWith = ()     => { setDetailItem(null); setRecipe(null); setTab('recipes'); };
 
   // ── Recipe actions ────────────────────────────────────────────────────────
-  const generate = () => {
-    setGenerating(true); setHasGenerated(false);
-    setTimeout(() => { setGenerating(false); setHasGenerated(true); }, 1700);
+  const generate = async () => {
+    setGenerating(true);
+    setHasGenerated(false);
+    try {
+      const res = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fridge: fridge.map(i => ({ name: i.name, qty: i.qty, days: i.days })),
+          filters,
+        }),
+      });
+      const data = await res.json();
+      if (data.recipes?.length) {
+        setGenerated(data.recipes);
+        setHasGenerated(true);
+      } else {
+        showToast('Could not generate recipes — try again');
+      }
+    } catch {
+      showToast('Could not reach AI — check your connection');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const toggleFilter = (d) => setFilters(fs => fs.includes(d) ? fs.filter(x => x !== d) : [...fs, d]);
