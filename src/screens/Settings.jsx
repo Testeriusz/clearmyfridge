@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { DIET_FILTERS } from '../data';
 import { Icon } from '../icons';
 import { Header, Btn, Chip, Card } from '../ui';
@@ -60,7 +61,8 @@ function Row({ icon, title, detail, control, chevron, tone, onClick }) {
   );
 }
 
-export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSetNotifOn, onBack, onReplay, onSignOut, user }) {
+export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSetNotifOn, onBack, onReplay, onSignOut, onDeleteAllData, user }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 80, background: 'var(--app-bg)',
@@ -104,7 +106,19 @@ export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSet
 
         <Group title="Data & privacy">
           <Row icon="shield" title="Your data is private" detail="Only ingredient names are ever sent for recipes — never your account details." />
-          <Row icon="trash" title="Delete all my data" tone="red" chevron />
+          {confirmDelete ? (
+            <div style={{ padding: '14px 15px' }}>
+              <div style={{ fontSize: 14, color: 'var(--ink-2)', marginBottom: 12, lineHeight: 1.45 }}>
+                This will permanently delete your fridge, shopping list, and saved recipes. This cannot be undone.
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <Btn full variant="danger" onClick={onDeleteAllData}>Delete everything</Btn>
+                <Btn full variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Btn>
+              </div>
+            </div>
+          ) : (
+            <Row icon="trash" title="Delete all my data" tone="red" chevron onClick={() => setConfirmDelete(true)} />
+          )}
         </Group>
 
         <Group title="About">

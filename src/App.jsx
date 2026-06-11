@@ -375,6 +375,18 @@ function AuthedApp({ user }) {
           onBack={() => setSettingsOpen(false)}
           onReplay={() => { setSettingsOpen(false); setOnboarded(false); }}
           onSignOut={() => { setSettingsOpen(false); supabase.auth.signOut(); }}
+          onDeleteAllData={async () => {
+            await Promise.all([
+              supabase.from('fridge_items').delete().eq('user_id', user.id),
+              supabase.from('shopping_items').delete().eq('user_id', user.id),
+              supabase.from('saved_recipes').delete().eq('user_id', user.id),
+            ]);
+            setFridge([]); setShopping([]); setSaved([]);
+            ['onboarded', 'tab', 'filters'].forEach(k => localStorage.removeItem('cmf_' + k));
+            localStorage.removeItem('cmf_shop_history');
+            setSettingsOpen(false);
+            supabase.auth.signOut();
+          }}
         />
       )}
 
