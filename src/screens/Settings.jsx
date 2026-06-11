@@ -33,11 +33,13 @@ function Group({ title, caption, children }) {
 
 function Row({ icon, title, detail, control, chevron, tone, onClick }) {
   const color = tone === 'red' ? 'var(--red-ink)' : 'var(--ink)';
+  const Tag = control ? 'div' : 'button';
+  const tagProps = control ? {} : { onClick, disabled: !onClick && !chevron };
   return (
-    <button onClick={onClick} disabled={!onClick && !chevron} style={{
+    <Tag {...tagProps} style={{
       width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 15px',
       background: 'transparent', border: 'none', borderBottom: '1px solid var(--line-2)',
-      cursor: onClick ? 'pointer' : 'default', textAlign: 'left', WebkitTapHighlightColor: 'transparent',
+      cursor: onClick && !control ? 'pointer' : 'default', textAlign: 'left', WebkitTapHighlightColor: 'transparent',
     }}>
       {icon && (
         <div style={{
@@ -54,7 +56,7 @@ function Row({ icon, title, detail, control, chevron, tone, onClick }) {
       </div>
       {control}
       {chevron && <Icon name="chevR" size={18} color="var(--ink-3)" strokeWidth={2} />}
-    </button>
+    </Tag>
   );
 }
 
