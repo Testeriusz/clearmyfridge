@@ -78,6 +78,7 @@ function AuthedApp({ user }) {
     supabase
       .from('fridge_items')
       .select('id, name, qty, category, expiry_date')
+      .eq('user_id', user.id)
       .order('expiry_date', { ascending: true, nullsLast: true })
       .then(({ data, error }) => { if (!error && data) setFridge(data.map(rowToItem)); });
   }, []);
@@ -86,6 +87,7 @@ function AuthedApp({ user }) {
     supabase
       .from('shopping_items')
       .select('id, name, category, done')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data) setShopping(data.map(r => ({ ...r, cat: normCat(r.category), source: 'manual' })));
@@ -96,6 +98,7 @@ function AuthedApp({ user }) {
     supabase
       .from('saved_recipes')
       .select('id, title, ingredients, steps, missing, macros, time_minutes, servings, tags, blurb')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
         if (!error && data) setSaved(data.map(r => ({
