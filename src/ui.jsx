@@ -113,29 +113,41 @@ export function Card({ children, style = {}, pad = 16, onClick }) {
   );
 }
 
-export function Macros({ macros, compact = false }) {
+export function Macros({ macros, compact = false, goals = null }) {
   const items = [
-    { k: 'kcal',    v: macros.kcal,    u: '' },
-    { k: 'protein', v: macros.protein, u: 'g' },
-    { k: 'fat',     v: macros.fat,     u: 'g' },
-    { k: 'carbs',   v: macros.carbs,   u: 'g' },
+    { k: 'kcal',    v: macros.kcal,    u: '',  goal: goals?.kcal    },
+    { k: 'protein', v: macros.protein, u: 'g', goal: goals?.protein },
+    { k: 'fat',     v: macros.fat,     u: 'g', goal: goals?.fat     },
+    { k: 'carbs',   v: macros.carbs,   u: 'g', goal: goals?.carbs   },
   ];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: compact ? 0 : 2 }}>
-      {items.map((m, i) => (
-        <div key={m.k} style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
-          padding: '6px 2px',
-          borderLeft: i > 0 ? '1px solid var(--line-2)' : 'none',
-        }}>
-          <span style={{ fontSize: compact ? 14.5 : 16, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-            {m.v}<span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)' }}>{m.u}</span>
-          </span>
-          <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {m.k}
-          </span>
-        </div>
-      ))}
+      {items.map((m, i) => {
+        const pct = m.goal ? Math.min(100, Math.round((m.v / m.goal) * 100)) : null;
+        const barColor = pct > 100 ? 'var(--red)' : pct >= 60 ? 'var(--green)' : 'var(--amber)';
+        return (
+          <div key={m.k} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+            padding: '6px 2px',
+            borderLeft: i > 0 ? '1px solid var(--line-2)' : 'none',
+          }}>
+            <span style={{ fontSize: compact ? 14.5 : 16, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+              {m.v}<span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-3)' }}>{m.u}</span>
+            </span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {m.k}
+            </span>
+            {pct !== null && (
+              <>
+                <div style={{ width: '72%', height: 3, borderRadius: 99, background: 'var(--line-2)', marginTop: 3 }}>
+                  <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width .3s' }} />
+                </div>
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: barColor, marginTop: 2 }}>{pct}%</span>
+              </>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

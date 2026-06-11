@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { freshness, dateFromDays } from '../data';
+import { getMacros } from '../nutrition';
 import { Icon } from '../icons';
 import {
-  Header, Btn, Chip, Card, Sheet, StatusPill, ItemThumb, EmptyState, ghostBtn,
+  Header, Btn, Chip, Card, Sheet, StatusPill, ItemThumb, EmptyState, Macros, ghostBtn,
 } from '../ui';
 
 const CATS = ['Fruit & Veg', 'Dairy', 'Protein', 'Pantry', 'Bakery', 'Drinks', 'Leftovers', 'Other'];
@@ -152,7 +153,7 @@ export default function FridgeScreen({ fridge, onOpenItem, onOpenAdd }) {
 export function ItemForm({ open, onClose, onSave, editing }) {
   const [name,     setName]     = useState('');
   const [qty,      setQty]      = useState('1');
-  const [cat,      setCat]      = useState('Produce');
+  const [cat,      setCat]      = useState('Other');
   const [days,     setDays]     = useState(3);
   const [scanning, setScanning] = useState(false);
   const [scanned,  setScanned]  = useState(false);
@@ -161,7 +162,7 @@ export function ItemForm({ open, onClose, onSave, editing }) {
     if (open) {
       setName(editing?.name || '');
       setQty(editing?.qty   || '1');
-      setCat(editing?.cat   || 'Produce');
+      setCat(editing?.cat   || 'Other');
       setDays(editing?.days ?? 3);
       setScanning(false);
       setScanned(false);
@@ -172,10 +173,10 @@ export function ItemForm({ open, onClose, onSave, editing }) {
     setScanning(true);
     setTimeout(() => {
       const picks = [
-        { name: 'Semi-skimmed milk',  cat: 'Dairy',   qty: '2 L'   },
-        { name: 'Cherry tomatoes',    cat: 'Produce', qty: '250 g' },
-        { name: 'Greek yogurt',       cat: 'Dairy',   qty: '500 g' },
-        { name: 'Chicken thighs',     cat: 'Protein', qty: '600 g' },
+        { name: 'Semi-skimmed milk',  cat: 'Dairy',       qty: '2 L'   },
+        { name: 'Cherry tomatoes',    cat: 'Fruit & Veg', qty: '250 g' },
+        { name: 'Greek yogurt',       cat: 'Dairy',       qty: '500 g' },
+        { name: 'Chicken thighs',     cat: 'Protein',     qty: '600 g' },
       ];
       const p = picks[Math.floor(Math.random() * picks.length)];
       setName(p.name); setCat(p.cat); setQty(p.qty);
@@ -325,7 +326,8 @@ export function ItemForm({ open, onClose, onSave, editing }) {
 
 export function ItemDetail({ item, onClose, onEdit, onDelete, onCookWith, onRebuy }) {
   if (!item) return null;
-  const f = freshness(item.days);
+  const f      = freshness(item.days);
+  const macros = getMacros(item.name);
   const statusLabel = f.label === 'Expired' || f.label === 'Today' ? f.label : `In ${f.label}`;
   return (
     <Sheet open={!!item} onClose={onClose}>
@@ -358,6 +360,19 @@ export function ItemDetail({ item, onClose, onEdit, onDelete, onCookWith, onRebu
             </div>
           </Card>
         </div>
+
+        {macros ? (
+          <Card pad={6} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '7px 10px 0' }}>
+              Nutrition · per 100g
+            </div>
+            <Macros macros={macros} />
+          </Card>
+        ) : (
+          <Card pad={13} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center' }}>No nutrition data for this item</div>
+          </Card>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Btn full variant="primary" icon="bowl" onClick={() => onCookWith(item)}>

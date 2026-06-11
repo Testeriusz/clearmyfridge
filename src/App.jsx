@@ -10,6 +10,7 @@ import ShoppingScreen   from './screens/Shopping';
 import AlertsScreen     from './screens/Alerts';
 import SettingsScreen   from './screens/Settings';
 import OnboardingScreen from './screens/Onboarding';
+import GoalsScreen      from './screens/Goals';
 
 const LS = {
   get(k, d) {
@@ -52,6 +53,7 @@ export default function App() {
 
 function AuthedApp({ user }) {
   const [onboarded, setOnboarded]       = useState(() => LS.get('onboarded', false));
+  const [goalsSetup, setGoalsSetup]     = useState(() => LS.get('goalsSetup', false));
   const [tab, setTab]                   = useState(() => LS.get('tab', 'home'));
   const [fridge, setFridge]             = useState([]);
   const [shopping, setShopping]         = useState([]);
@@ -59,8 +61,12 @@ function AuthedApp({ user }) {
   const [generated, setGenerated]       = useState([]);
   const [generating, setGenerating]     = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [plan, setPlan]                 = useState([]);
+  const [planning, setPlanning]         = useState(false);
+  const [hasPlanned, setHasPlanned]     = useState(false);
   const [filters, setFilters]           = useState(() => LS.get('filters', []));
-  const [notifOn, setNotifOn]           = useState(true);
+  const [goals,   setGoals]             = useState(() => LS.get('goals', { kcal: 2000, protein: 120, fat: 65, carbs: 220 }));
+  const [notifOn, setNotifOn]           = useState(() => LS.get('notifOn', true));
   const pendingDeleteRef                = useRef(null);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,6 +78,35 @@ function AuthedApp({ user }) {
 
   useEffect(() => LS.set('tab', tab), [tab]);
   useEffect(() => LS.set('filters', filters), [filters]);
+  useEffect(() => LS.set('goals', goals), [goals]);
+
+  // OneSignal push setup
+  useEffect(() => {
+    const appId = import.meta.env.VITE_ONESIGNAL_APP_ID;
+    if (!appId) return;
+    const script = document.createElement('script');
+    script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+    script.defer = true;
+    script.onload = () => {
+      window.OneSignal = window.OneSignal || [];
+      window.OneSignal.init({ appId }).then(async () => {
+        if (notifOn) {
+          await window.OneSignal.User.PushSubscription.optIn().catch(() => {});
+        }
+        // Save push token to user_preferences
+        const token = window.OneSignal.User.PushSubscription.id;
+        if (token) {
+          await supabase.from('user_preferences').upsert(
+            { user_id: user.id, push_token: token, notif_on: notifOn, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+        }
+      }).catch(() => {});
+    };
+    document.head.appendChild(script);
+    return () => { try { document.head.removeChild(script); } catch {} };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── DB loaders ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -97,7 +132,7 @@ function AuthedApp({ user }) {
   useEffect(() => {
     supabase
       .from('saved_recipes')
-      .select('id, title, ingredients, steps, missing, macros, time_minutes, servings, tags, blurb')
+      .select('id, title, ingredients, steps, missing, macros, time_minutes, servings, tags, blurb, meal_type')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -107,6 +142,7 @@ function AuthedApp({ user }) {
           missing: r.missing || [], macros: r.macros || {},
           prep: r.time_minutes, serves: r.servings,
           tags: r.tags || [], expiringUsed: 0,
+          mealType: r.meal_type ?? null,
         })));
       });
   }, []);
@@ -114,7 +150,7 @@ function AuthedApp({ user }) {
   // ── Helpers ───────────────────────────────────────────────────────────────
   function normCat(c) { return c === 'Produce' ? 'Fruit & Veg' : (c ?? 'Other'); }
   function rowToItem(row) {
-    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: normCat(row.category), expiry_date: row.expiry_date ?? null, days: daysFromDate(row.expiry_date), added: 0 };
+    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: normCat(row.category), expiry_date: row.expiry_date ?? null, days: daysFromDate(row.expiry_date) };
   }
   function daysFromDate(dateStr) {
     if (!dateStr) return 7;
@@ -128,6 +164,7 @@ function AuthedApp({ user }) {
       missing: r.missing || [], macros: r.macros || {},
       prep: r.time_minutes, serves: r.servings,
       tags: r.tags || [], expiringUsed: 0,
+      mealType: r.meal_type ?? null,
     };
   }
 
@@ -201,7 +238,7 @@ function AuthedApp({ user }) {
     } else {
       const { data, error } = await supabase.from('fridge_items')
         .insert({ user_id: user.id, name, qty, category: cat, expiry_date }).select('id').single();
-      if (!error && data) { setFridge(f => [{ id: data.id, name, qty, cat, days, expiry_date, added: 0 }, ...f]); showToast(`${name} added to your fridge`); }
+      if (!error && data) { setFridge(f => [{ id: data.id, name, qty, cat, days, expiry_date }, ...f]); showToast(`${name} added to your fridge`); }
       else showToast('Failed to add item');
     }
     setItemForm({ open: false, editing: null });
@@ -236,6 +273,7 @@ function AuthedApp({ user }) {
         body: JSON.stringify({
           fridge: fridge.map(i => ({ name: i.name, qty: i.qty, days: i.days })),
           filters,
+          goals,
         }),
       });
       const data = await res.json();
@@ -252,6 +290,33 @@ function AuthedApp({ user }) {
     }
   };
 
+  const generatePlan = async () => {
+    setPlanning(true);
+    setHasPlanned(false);
+    try {
+      const res = await fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fridge: fridge.map(i => ({ name: i.name, qty: i.qty, days: i.days })),
+          filters,
+          goals,
+        }),
+      });
+      const data = await res.json();
+      if (data.plan?.length) {
+        setPlan(data.plan);
+        setHasPlanned(true);
+      } else {
+        showToast('Could not generate plan — try again');
+      }
+    } catch {
+      showToast('Could not reach AI — check your connection');
+    } finally {
+      setPlanning(false);
+    }
+  };
+
   const toggleFilter = (d) => setFilters(fs => fs.includes(d) ? fs.filter(x => x !== d) : [...fs, d]);
 
   const toggleSave = async (r) => {
@@ -261,7 +326,7 @@ function AuthedApp({ user }) {
     } else {
       if (saved.length >= 20) { showToast('Saved is full (20 max)'); return; }
       const { data, error } = await supabase.from('saved_recipes')
-        .insert({ user_id: user.id, title: r.title, blurb: r.blurb, ingredients: r.uses || [], steps: r.steps || [], missing: r.missing || [], macros: r.macros, time_minutes: r.prep, servings: r.serves, tags: r.tags || [] })
+        .insert({ user_id: user.id, title: r.title, blurb: r.blurb, ingredients: r.uses || [], steps: r.steps || [], missing: r.missing || [], macros: r.macros, time_minutes: r.prep, servings: r.serves, tags: r.tags || [], meal_type: r.mealType ?? null })
         .select('id').single();
       if (!error && data) { setSaved(s => [{ ...r, id: data.id }, ...s]); showToast('Recipe saved'); }
     }
@@ -350,14 +415,44 @@ function AuthedApp({ user }) {
 
   const finishOnboarding = () => { setOnboarded(true); LS.set('onboarded', true); setTab('fridge'); };
 
+  const finishGoals = ({ goal, kcal, protein, fat, carbs }) => {
+    const g = { kcal, protein, fat, carbs };
+    setGoals(g);
+    LS.set('goals', g);
+    setGoalsSetup(true);
+    LS.set('goalsSetup', true);
+  };
+  const skipGoals = () => { setGoalsSetup(true); LS.set('goalsSetup', true); };
+
+  const handleSetNotifOn = async (val) => {
+    setNotifOn(val);
+    LS.set('notifOn', val);
+    // Persist preference to Supabase
+    await supabase.from('user_preferences').upsert(
+      { user_id: user.id, notif_on: val, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+    // Handle OneSignal push subscription
+    if (window.OneSignal) {
+      if (val) {
+        window.OneSignal.User.PushSubscription.optIn().catch(() => {});
+      } else {
+        window.OneSignal.User.PushSubscription.optOut().catch(() => {});
+      }
+    }
+  };
+
   const screenProps = {
     fridge, shopping, saved, generated, generating, hasGenerated,
-    filters, alerts, notifOn, savedIds,
+    plan, planning, hasPlanned,
+    filters, goals, alerts, notifOn, savedIds,
+    onSetGoals: setGoals,
     onSaveItem:      saveItem,
     onDeleteItem:    deleteItem,
     onEditItem:      editItem,
     onCookWith:      cookWith,
     onGenerate:      generate,
+    onGeneratePlan:  generatePlan,
     onToggleFilter:  toggleFilter,
     onToggleSave:    toggleSave,
     onOpenRecipeById: openRecipeById,
@@ -366,7 +461,7 @@ function AuthedApp({ user }) {
     onToggleShop:    toggleShop,
     onAddShop:       addShop,
     onClearTicked:   clearTicked,
-    onSetNotifOn:    setNotifOn,
+    onSetNotifOn:    handleSetNotifOn,
     onOpenItem:      setDetailItem,
     onOpenRecipe:    setRecipe,
     onOpenAdd:       () => setItemForm({ open: true, editing: null }),
@@ -420,6 +515,7 @@ function AuthedApp({ user }) {
         recipe={recipe}
         fridge={fridge}
         saved={recipe ? savedIds.has(recipe.id) : false}
+        goals={goals}
         onClose={() => setRecipe(null)}
         onSave={toggleSave}
         onAddMissing={addMissing}
@@ -448,6 +544,9 @@ function AuthedApp({ user }) {
       )}
 
       {!onboarded && <OnboardingScreen onDone={finishOnboarding} />}
+      {onboarded && !goalsSetup && (
+        <GoalsScreen onContinue={finishGoals} onSkip={skipGoals} />
+      )}
     </div>
   );
 }

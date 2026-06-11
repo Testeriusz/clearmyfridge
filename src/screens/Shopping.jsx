@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { CATEGORY_ORDER } from '../data';
+import { getMacros } from '../nutrition';
 import { Icon } from '../icons';
-import { Header, Btn, Card, Chip } from '../ui';
+import { Header, Btn, Card, Chip, Sheet, Macros, ItemThumb } from '../ui';
 
 const GROCERY_LIST = [
   // Dairy
@@ -105,36 +106,88 @@ function Checkbox({ done }) {
   );
 }
 
-function ShopRow({ item, onToggle, last }) {
+function ShopRow({ item, onToggle, onOpen, last }) {
+  const macros = getMacros(item.name);
   return (
     <div>
-      <button onClick={() => onToggle(item.id)} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 13, padding: '12px 14px',
-        background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-        WebkitTapHighlightColor: 'transparent',
-      }}>
-        <Checkbox done={item.done} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 15.5, fontWeight: 600,
-            color: item.done ? 'var(--ink-3)' : 'var(--ink)',
-            textDecorationLine: item.done ? 'line-through' : 'none',
-            textDecorationColor: 'var(--ink-3)',
-          }}>
-            {item.name}
+      <div style={{ display: 'flex', alignItems: 'center', WebkitTapHighlightColor: 'transparent' }}>
+        {/* Checkbox area — toggles done */}
+        <button onClick={() => onToggle(item.id)} style={{
+          flexShrink: 0, padding: '12px 10px 12px 14px', alignSelf: 'stretch',
+          background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+        }}>
+          <Checkbox done={item.done} />
+        </button>
+        {/* Name + macros area — opens detail */}
+        <button onClick={() => onOpen(item)} style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px 10px 3px',
+          background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+          minWidth: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 15.5, fontWeight: 600,
+              color: item.done ? 'var(--ink-3)' : 'var(--ink)',
+              textDecorationLine: item.done ? 'line-through' : 'none',
+              textDecorationColor: 'var(--ink-3)',
+            }}>
+              {item.name}
+            </div>
+            {macros && !item.done && (
+              <div style={{ fontSize: 11.5, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ color: 'var(--ink-2)', fontWeight: 650 }}>{macros.kcal} kcal</span>
+                <span style={{ color: 'var(--ink-3)', fontWeight: 500 }}> · {macros.protein}g P · {macros.fat}g F · {macros.carbs}g C</span>
+              </div>
+            )}
           </div>
-          {item.note && !item.done && (
-            <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 1 }}>{item.note}</div>
+          {item.source === 'ai' && !item.done && (
+            <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 650, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '3px 8px', borderRadius: 99 }}>
+              Suggested
+            </span>
           )}
-        </div>
-        {item.source === 'ai' && !item.done && (
-          <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--green-ink)', background: 'var(--green-soft)', padding: '3px 8px', borderRadius: 99 }}>
-            Suggested
-          </span>
-        )}
-      </button>
+          <Icon name="chevR" size={15} color="var(--ink-3)" strokeWidth={2} style={{ flexShrink: 0 }} />
+        </button>
+      </div>
       {!last && <div style={{ height: 1, background: 'var(--line-2)', marginLeft: 53 }} />}
     </div>
+  );
+}
+
+function ShopDetail({ item, onClose, onToggle }) {
+  if (!item) return null;
+  const macros = getMacros(item.name);
+  return (
+    <Sheet open={!!item} onClose={onClose}>
+      <div style={{ padding: '8px 20px 28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+          <ItemThumb cat={item.cat} size={52} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 20, fontWeight: 750, color: 'var(--ink)', letterSpacing: -0.3 }}>
+              {item.name}
+            </div>
+            <div style={{ fontSize: 13.5, color: 'var(--ink-3)', marginTop: 3 }}>{item.cat}</div>
+          </div>
+        </div>
+
+        {macros ? (
+          <Card pad={6} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '7px 10px 0' }}>
+              Nutrition · per 100g
+            </div>
+            <Macros macros={macros} />
+          </Card>
+        ) : (
+          <Card pad={13} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center' }}>No nutrition data for this item</div>
+          </Card>
+        )}
+
+        <Btn full variant={item.done ? 'secondary' : 'primary'} onClick={() => { onToggle(item.id); onClose(); }}>
+          {item.done ? 'Mark as not bought' : 'Mark as bought'}
+        </Btn>
+      </div>
+    </Sheet>
   );
 }
 
@@ -150,6 +203,7 @@ const saveToHistory = (name) => {
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
   const [draft, setDraft] = useState('');
   const [activeCat, setActiveCat] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);
   const inputRef = useRef(null);
 
   const remaining = shopping.filter(s => !s.done).length;
@@ -187,7 +241,7 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
   // AI suggestions — debounced, replaces local results when ready
   useEffect(() => {
     const q = draft.trim();
-    if (q.length < 2) return;
+    if (q.length < 3) return;
     const timer = setTimeout(async () => {
       try {
         const res  = await fetch('/api/suggest', {
@@ -203,7 +257,7 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
           [...filtered, ...prev.filter(s => !aiSet.has(s.toLowerCase()))].slice(0, 8)
         );
       } catch {} // silently keep local suggestions on error
-    }, 450);
+    }, 800);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
@@ -324,7 +378,7 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
                   </div>
                   <Card pad={2}>
                     {g.items.map((it, i) => (
-                      <ShopRow key={it.id} item={it} onToggle={onToggleShop} last={i === g.items.length - 1} />
+                      <ShopRow key={it.id} item={it} onToggle={onToggleShop} onOpen={setDetailItem} last={i === g.items.length - 1} />
                     ))}
                   </Card>
                 </div>
@@ -333,6 +387,12 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
           </>
         )}
       </div>
+
+      <ShopDetail
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+        onToggle={(id) => { onToggleShop(id); setDetailItem(d => d && d.id === id ? { ...d, done: !d.done } : d); }}
+      />
     </div>
   );
 }

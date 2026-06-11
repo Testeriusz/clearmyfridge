@@ -32,6 +32,34 @@ function Group({ title, caption, children }) {
   );
 }
 
+const stepBtn = {
+  width: 32, height: 32, borderRadius: 9, border: '1px solid var(--line)',
+  background: 'var(--surface-2)', fontSize: 19, lineHeight: 1, color: 'var(--ink)',
+  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: 'inherit', fontWeight: 400, flexShrink: 0,
+};
+
+function GoalRow({ label, unit, value, step, min = 0, onChange, last }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', padding: '13px 15px',
+      borderBottom: last ? 'none' : '1px solid var(--line-2)',
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{label}</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button style={stepBtn} onClick={() => onChange(Math.max(min, value - step))}>−</button>
+        <div style={{ minWidth: 70, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{value}</span>
+          <span style={{ fontSize: 12, color: 'var(--ink-3)', marginLeft: 3 }}>{unit}</span>
+        </div>
+        <button style={stepBtn} onClick={() => onChange(value + step)}>+</button>
+      </div>
+    </div>
+  );
+}
+
 function Row({ icon, title, detail, control, chevron, tone, onClick }) {
   const color = tone === 'red' ? 'var(--red-ink)' : 'var(--ink)';
   const Tag = control ? 'div' : 'button';
@@ -61,7 +89,7 @@ function Row({ icon, title, detail, control, chevron, tone, onClick }) {
   );
 }
 
-export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSetNotifOn, onBack, onReplay, onSignOut, onDeleteAllData, user }) {
+export default function SettingsScreen({ filters, onToggleFilter, goals, onSetGoals, notifOn, onSetNotifOn, onBack, onReplay, onSignOut, onDeleteAllData, user }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <div style={{
@@ -98,6 +126,15 @@ export default function SettingsScreen({ filters, onToggleFilter, notifOn, onSet
               </Chip>
             ))}
           </div>
+        </Group>
+
+        <Group title="Daily goals" caption="Used to size recipe recommendations and show % of goal on macro bars.">
+          {goals && <>
+            <GoalRow label="Calories"  unit="kcal" value={goals.kcal}    step={50} min={500} onChange={v => onSetGoals(g => ({ ...g, kcal:    v }))} />
+            <GoalRow label="Protein"   unit="g"    value={goals.protein} step={5}  min={0}   onChange={v => onSetGoals(g => ({ ...g, protein: v }))} />
+            <GoalRow label="Fat"       unit="g"    value={goals.fat}     step={5}  min={0}   onChange={v => onSetGoals(g => ({ ...g, fat:     v }))} />
+            <GoalRow label="Carbs"     unit="g"    value={goals.carbs}   step={5}  min={0}   onChange={v => onSetGoals(g => ({ ...g, carbs:   v }))} last />
+          </>}
         </Group>
 
         <Group title="Notifications">

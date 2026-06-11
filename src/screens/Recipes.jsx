@@ -11,7 +11,7 @@ const vegTag = {
   padding: '3px 9px', borderRadius: 99,
 };
 
-function RecipeCard({ recipe, saved, onSave, onOpen }) {
+function RecipeCard({ recipe, saved, onSave, onOpen, goals }) {
   return (
     <Card pad={0} style={{ overflow: 'hidden' }} onClick={() => onOpen(recipe)}>
       <div style={{
@@ -50,7 +50,7 @@ function RecipeCard({ recipe, saved, onSave, onOpen }) {
           </div>
         )}
         <div style={{ borderTop: '1px solid var(--line-2)', paddingTop: 10 }}>
-          <Macros macros={recipe.macros} compact />
+          <Macros macros={recipe.macros} compact goals={goals} />
         </div>
       </div>
     </Card>
@@ -70,10 +70,32 @@ function SkeletonCard() {
   );
 }
 
+const MEAL_META = {
+  Breakfast: { color: '#F59E0B', bg: '#FFFBEB', label: 'Breakfast', time: 'Morning'   },
+  Lunch:     { color: '#10B981', bg: '#ECFDF5', label: 'Lunch',     time: 'Midday'    },
+  Dinner:    { color: '#6366F1', bg: '#EEF2FF', label: 'Dinner',    time: 'Evening'   },
+  Snack:     { color: '#F97316', bg: '#FFF7ED', label: 'Snack',     time: 'Anytime'   },
+};
+
+function MealCard({ recipe, saved, onSave, onOpen, goals }) {
+  const meta = MEAL_META[recipe.mealType] ?? MEAL_META.Dinner;
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ width: 10, height: 10, borderRadius: 99, background: meta.color, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 750, color: meta.color, letterSpacing: 0.2, textTransform: 'uppercase' }}>{meta.label}</span>
+        <span style={{ fontSize: 12.5, color: 'var(--ink-3)', fontWeight: 500 }}>· {meta.time}</span>
+      </div>
+      <RecipeCard recipe={recipe} saved={saved} onSave={onSave} onOpen={onOpen} goals={goals} />
+    </div>
+  );
+}
+
 export default function RecipesScreen({
   fridge, generated, generating, hasGenerated,
-  onGenerate, filters, onToggleFilter,
-  saved, onToggleSave, onOpenRecipe, savedIds,
+  plan, planning, hasPlanned,
+  onGenerate, onGeneratePlan, filters, onToggleFilter,
+  saved, onToggleSave, onOpenRecipe, savedIds, goals,
 }) {
   const [tab, setTab]   = useState('fridge');
   const enoughItems     = fridge.length >= 3;
@@ -87,8 +109,9 @@ export default function RecipesScreen({
             value={tab}
             onChange={setTab}
             tabs={[
-              { value: 'fridge', label: 'For your fridge' },
+              { value: 'fridge', label: 'Suggested' },
               { value: 'saved',  label: 'Saved', count: saved.length },
+              { value: 'today',  label: 'Today' },
             ]}
           />
         </div>
@@ -154,7 +177,7 @@ export default function RecipesScreen({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {generated.map((r, i) => (
                     <Fragment key={r.id}>
-                      <RecipeCard recipe={r} saved={savedIds.has(r.id)} onSave={onToggleSave} onOpen={onOpenRecipe} />
+                      <RecipeCard recipe={r} saved={savedIds.has(r.id)} onSave={onToggleSave} onOpen={onOpenRecipe} goals={goals} />
                       {i === 0 && <AdBanner label="Ad" />}
                     </Fragment>
                   ))}
@@ -175,8 +198,68 @@ export default function RecipesScreen({
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {saved.map(r => (
-                  <RecipeCard key={r.id} recipe={r} saved onSave={onToggleSave} onOpen={onOpenRecipe} />
+                  <RecipeCard key={r.id} recipe={r} saved onSave={onToggleSave} onOpen={onOpenRecipe} goals={goals} />
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'today' && (
+          <div>
+            {!hasPlanned && !planning && (
+              <Card pad={22} style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 17, background: 'var(--green-soft)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+                }}>
+                  <Icon name="clock" size={28} color="var(--green-ink)" strokeWidth={1.7} />
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 750, color: 'var(--ink)', marginBottom: 6, letterSpacing: -0.2 }}>
+                  What can you eat today?
+                </div>
+                <div style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.45, maxWidth: 270, margin: '0 auto 18px' }}>
+                  Get a full day of meals — Breakfast, Lunch, Dinner and a Snack — built from your fridge.
+                </div>
+                <Btn full size="lg" variant="primary" icon="bowl" disabled={!enoughItems} onClick={onGeneratePlan}>
+                  {enoughItems ? 'Plan my day' : 'Add at least 3 items'}
+                </Btn>
+              </Card>
+            )}
+
+            {planning && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, color: 'var(--ink-2)', fontSize: 14.5, fontWeight: 600, padding: '4px 0 16px' }}>
+                  <span className="cmf-spin" style={{ width: 17, height: 17, borderRadius: 99, border: '2px solid var(--line)', borderTopColor: 'var(--green)', display: 'inline-block' }} />
+                  Planning your day…
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(m => (
+                    <div key={m}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 99, background: 'var(--line)', flexShrink: 0 }} />
+                        <div className="cmf-shimmer" style={{ height: 13, width: 80, borderRadius: 6, background: 'var(--line-2)' }} />
+                      </div>
+                      <SkeletonCard />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hasPlanned && !planning && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Your day, planned</span>
+                  <button onClick={onGeneratePlan} style={{ ...ghostBtn, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--green-ink)', fontWeight: 700, fontSize: 14 }}>
+                    <Icon name="flame" size={16} color="var(--green-ink)" strokeWidth={2} /> Replan
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {plan.map(r => (
+                    <MealCard key={r.id} recipe={r} saved={savedIds.has(r.id)} onSave={onToggleSave} onOpen={onOpenRecipe} goals={goals} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -186,7 +269,7 @@ export default function RecipesScreen({
   );
 }
 
-export function RecipeDetail({ recipe, fridge, saved, onClose, onSave, onAddMissing }) {
+export function RecipeDetail({ recipe, fridge, saved, goals, onClose, onSave, onAddMissing }) {
   if (!recipe) return null;
 
   return (
@@ -230,9 +313,9 @@ export function RecipeDetail({ recipe, fridge, saved, onClose, onSave, onAddMiss
 
           <Card pad={6} style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '7px 10px 0' }}>
-              Per serving
+              Per serving{goals ? ' · % of daily goal' : ''}
             </div>
-            <Macros macros={recipe.macros} />
+            <Macros macros={recipe.macros} goals={goals} />
           </Card>
 
           <div style={{ marginBottom: 18 }}>

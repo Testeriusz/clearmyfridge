@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { fridge = [], filters = [] } = req.body;
+  const { fridge = [], filters = [], goals = null } = req.body;
   if (fridge.length < 1) return res.status(400).json({ error: 'No fridge items' });
 
   const fridgeLines = fridge
@@ -12,12 +12,16 @@ export default async function handler(req, res) {
     ? `Dietary requirements: ${filters.join(', ')}. Only suggest recipes that fully comply.\n`
     : '';
 
+  const goalsLine = goals
+    ? `User's daily macro goals: ${goals.kcal} kcal, ${goals.protein}g protein, ${goals.fat}g fat, ${goals.carbs}g carbs. Each recipe (per serving) should ideally cover 25–40% of these daily targets.\n`
+    : '';
+
   const prompt = `You are a helpful home chef. Generate exactly 3 recipes using the fridge contents below.
 
 Fridge contents:
 ${fridgeLines}
 
-${dietLine}Rules:
+${dietLine}${goalsLine}Rules:
 - Prioritise ingredients expiring soonest (lowest days value)
 - Each recipe must use at least 2 fridge items
 - List used fridge items in "uses" using their exact names as given above
