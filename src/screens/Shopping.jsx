@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CATEGORY_ORDER } from '../data';
 import { Icon } from '../icons';
 import { Header, Btn, Card, Chip } from '../ui';
@@ -161,22 +161,52 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
     .filter(g => g.items.length > 0)
     .filter(g => !activeCat || g.cat === activeCat);
 
-  const onList     = new Set(shopping.map(s => s.name.toLowerCase()));
+  const onList      = new Set(shopping.map(s => s.name.toLowerCase()));
   const fridgeNames = new Set((fridge || []).map(i => i.name.toLowerCase()));
 
-  const suggestions = (() => {
+  const [suggestions, setSuggestions] = useState([]);
+
+  // Local suggestions — instant on every keystroke
+  useEffect(() => {
     const q = draft.trim().toLowerCase();
-    if (!q) return [];
-    const history  = getHistory();
-    const matches  = (s) => s.toLowerCase().includes(q) && s.toLowerCase() !== q && !onList.has(s.toLowerCase());
-    const seen     = new Set();
-    const result   = [];
+    if (!q) { setSuggestions([]); return; }
+    const history = getHistory();
+    const seen    = new Set();
+    const result  = [];
     for (const s of [...history, ...(fridge || []).map(i => i.name), ...GROCERY_LIST]) {
-      if (matches(s) && !seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); result.push(s); }
+      if (s.toLowerCase().includes(q) && s.toLowerCase() !== q && !onList.has(s.toLowerCase()) && !seen.has(s.toLowerCase())) {
+        seen.add(s.toLowerCase());
+        result.push(s);
+      }
       if (result.length >= 8) break;
     }
-    return result;
-  })();
+    setSuggestions(result);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, shopping]);
+
+  // AI suggestions — debounced, replaces local results when ready
+  useEffect(() => {
+    const q = draft.trim();
+    if (q.length < 2) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res  = await fetch('/api/suggest', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: q, fridge: (fridge || []).map(i => i.name) }),
+        });
+        const { suggestions: ai = [] } = await res.json();
+        const filtered = ai.filter(s => !onList.has(s.toLowerCase()));
+        if (!filtered.length) return;
+        const aiSet = new Set(filtered.map(s => s.toLowerCase()));
+        setSuggestions(prev =>
+          [...filtered, ...prev.filter(s => !aiSet.has(s.toLowerCase()))].slice(0, 8)
+        );
+      } catch {} // silently keep local suggestions on error
+    }, 450);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   const historySet = new Set(getHistory().map(h => h.toLowerCase()));
 
