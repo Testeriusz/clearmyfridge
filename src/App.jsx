@@ -86,11 +86,11 @@ function AuthedApp({ user }) {
   useEffect(() => {
     supabase
       .from('shopping_items')
-      .select('id, name, category, done')
+      .select('id, name, category, done, source')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setShopping(data.map(r => ({ ...r, cat: normCat(r.category), source: 'manual' })));
+        if (!error && data) setShopping(data.map(r => ({ ...r, cat: normCat(r.category), source: r.source ?? 'manual' })));
       });
   }, []);
 
@@ -114,7 +114,7 @@ function AuthedApp({ user }) {
   // ── Helpers ───────────────────────────────────────────────────────────────
   function normCat(c) { return c === 'Produce' ? 'Fruit & Veg' : (c ?? 'Other'); }
   function rowToItem(row) {
-    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: normCat(row.category), days: daysFromDate(row.expiry_date), added: 0 };
+    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: normCat(row.category), expiry_date: row.expiry_date ?? null, days: daysFromDate(row.expiry_date), added: 0 };
   }
   function daysFromDate(dateStr) {
     if (!dateStr) return 7;
@@ -146,7 +146,7 @@ function AuthedApp({ user }) {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'shopping_items', filter: `user_id=eq.${user.id}` },
         ({ eventType, new: n, old: o }) => {
-          if (eventType === 'INSERT') setShopping(s => s.some(i => i.id === n.id) ? s : [...s, { ...n, cat: normCat(n.category), source: 'manual' }]);
+          if (eventType === 'INSERT') setShopping(s => s.some(i => i.id === n.id) ? s : [...s, { ...n, cat: normCat(n.category), source: n.source ?? 'manual' }]);
           if (eventType === 'UPDATE') setShopping(s => s.map(i => i.id === n.id ? { ...i, done: n.done } : i));
           if (eventType === 'DELETE') setShopping(s => s.filter(i => i.id !== o.id));
         }
@@ -161,6 +161,23 @@ function AuthedApp({ user }) {
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Midnight day refresh ──────────────────────────────────────────────────
+  useEffect(() => {
+    let t;
+    const refresh = () => {
+      setFridge(f => f.map(i => ({ ...i, days: daysFromDate(i.expiry_date) })));
+      schedule();
+    };
+    const schedule = () => {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      t = setTimeout(refresh, midnight - now);
+    };
+    schedule();
+    return () => clearTimeout(t);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
   function dateFromDaysOffset(days) {
     const d = new Date(); d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + days);
@@ -179,12 +196,12 @@ function AuthedApp({ user }) {
     if (itemForm.editing) {
       const { error } = await supabase.from('fridge_items')
         .update({ name, qty, category: cat, expiry_date }).eq('id', itemForm.editing.id);
-      if (!error) { setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days } : i)); showToast('Item updated'); }
+      if (!error) { setFridge(f => f.map(i => i.id === itemForm.editing.id ? { ...i, name, qty, cat, days, expiry_date } : i)); showToast('Item updated'); }
       else showToast('Failed to update item');
     } else {
       const { data, error } = await supabase.from('fridge_items')
         .insert({ user_id: user.id, name, qty, category: cat, expiry_date }).select('id').single();
-      if (!error && data) { setFridge(f => [{ id: data.id, name, qty, cat, days, added: 0 }, ...f]); showToast(`${name} added to your fridge`); }
+      if (!error && data) { setFridge(f => [{ id: data.id, name, qty, cat, days, expiry_date, added: 0 }, ...f]); showToast(`${name} added to your fridge`); }
       else showToast('Failed to add item');
     }
     setItemForm({ open: false, editing: null });
@@ -261,10 +278,10 @@ function AuthedApp({ user }) {
     const toAdd = r.missing.filter(m => !existing.has(m.toLowerCase()));
     if (!toAdd.length) { showToast('Already on your list'); return; }
     const { data, error } = await supabase.from('shopping_items')
-      .insert(toAdd.map(m => ({ user_id: user.id, name: m, category: guessCat(m), done: false })))
-      .select('id, name, category, done');
+      .insert(toAdd.map(m => ({ user_id: user.id, name: m, category: guessCat(m), done: false, source: 'ai' })))
+      .select('id, name, category, done, source');
     if (!error && data) {
-      setShopping(s => [...s, ...data.map(row => ({ ...row, cat: row.category, source: 'ai' }))]);
+      setShopping(s => [...s, ...data.map(row => ({ ...row, cat: normCat(row.category), source: row.source ?? 'ai' }))]);
       showToast(`${data.length} item${data.length === 1 ? '' : 's'} added to shopping`);
     } else {
       showToast('Could not add items'); console.error(error);
@@ -275,7 +292,7 @@ function AuthedApp({ user }) {
     setDetailItem(null);
     if (shopping.find(x => x.name.toLowerCase() === item.name.toLowerCase())) { showToast(`${item.name} already on list`); return; }
     const { data, error } = await supabase.from('shopping_items')
-      .insert({ user_id: user.id, name: item.name, category: item.cat, done: false })
+      .insert({ user_id: user.id, name: item.name, category: item.cat, done: false, source: 'manual' })
       .select('id').single();
     if (!error && data) {
       setShopping(s => [...s, { id: data.id, name: item.name, cat: item.cat, source: 'manual', done: false }]);
@@ -298,7 +315,7 @@ function AuthedApp({ user }) {
     const tempId = `temp-${Date.now()}`;
     setShopping(s => [...s, { id: tempId, name, cat, source: 'manual', done: false }]);
     const { data, error } = await supabase.from('shopping_items')
-      .insert({ user_id: user.id, name, category: cat, done: false })
+      .insert({ user_id: user.id, name, category: cat, done: false, source: 'manual' })
       .select('id').single();
     if (!error && data) {
       setShopping(s => s.map(i => i.id === tempId ? { ...i, id: data.id } : i));
