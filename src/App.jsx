@@ -23,7 +23,7 @@ function guessCat(name) {
   const n = name.toLowerCase();
   const map = {
     Dairy:   ['milk', 'yogurt', 'cheese', 'butter', 'cream'],
-    Produce: ['tomato', 'onion', 'garlic', 'pepper', 'spinach', 'lemon', 'apple', 'carrot', 'herb', 'lime', 'dill'],
+    'Fruit & Veg': ['tomato', 'onion', 'garlic', 'pepper', 'spinach', 'lemon', 'apple', 'carrot', 'herb', 'lime', 'dill', 'berry', 'banana', 'orange', 'grape', 'mango', 'cucumber', 'broccoli', 'mushroom', 'courgette', 'aubergine'],
     Protein: ['chicken', 'salmon', 'egg', 'beef', 'pork', 'tofu', 'fish', 'thigh'],
     Pantry:  ['oil', 'rice', 'paprika', 'salt', 'pasta', 'flour', 'spice', 'honey', 'oats', 'coffee'],
     Bakery:  ['bread', 'roll', 'bun', 'bagel'],
@@ -88,7 +88,7 @@ function AuthedApp({ user }) {
       .select('id, name, category, done')
       .order('created_at', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setShopping(data.map(r => ({ ...r, cat: r.category, source: 'manual' })));
+        if (!error && data) setShopping(data.map(r => ({ ...r, cat: normCat(r.category), source: 'manual' })));
       });
   }, []);
 
@@ -109,8 +109,9 @@ function AuthedApp({ user }) {
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  function normCat(c) { return c === 'Produce' ? 'Fruit & Veg' : (c ?? 'Other'); }
   function rowToItem(row) {
-    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: row.category ?? 'Other', days: daysFromDate(row.expiry_date), added: 0 };
+    return { id: row.id, name: row.name, qty: row.qty ?? '1', cat: normCat(row.category), days: daysFromDate(row.expiry_date), added: 0 };
   }
   function daysFromDate(dateStr) {
     if (!dateStr) return 7;

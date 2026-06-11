@@ -126,4 +126,4 @@ export const ALERTS_SEED = [
 
 export const DIET_FILTERS = ['Vegetarian', 'Vegan', 'Gluten-free', 'Low-calorie'];
 
-export const CATEGORY_ORDER = ['Dairy', 'Produce', 'Protein', 'Pantry', 'Bakery', 'Drinks', 'Leftovers', 'Other'];
+export const CATEGORY_ORDER = ['Dairy', 'Fruit & Veg', 'Protein', 'Pantry', 'Bakery', 'Drinks', 'Leftovers', 'Other'];

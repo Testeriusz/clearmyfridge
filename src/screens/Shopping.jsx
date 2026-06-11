@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { CATEGORY_ORDER } from '../data';
 import { Icon } from '../icons';
-import { Header, Btn, Card } from '../ui';
+import { Header, Btn, Card, Chip } from '../ui';
 
 const GROCERY_LIST = [
   // Dairy
@@ -149,14 +149,17 @@ const saveToHistory = (name) => {
 
 export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddShop, onClearTicked }) {
   const [draft, setDraft] = useState('');
+  const [activeCat, setActiveCat] = useState(null);
   const inputRef = useRef(null);
 
   const remaining = shopping.filter(s => !s.done).length;
   const doneCount = shopping.length - remaining;
 
+  const availCats = CATEGORY_ORDER.filter(c => shopping.some(s => s.cat === c));
   const groups = CATEGORY_ORDER
     .map(cat => ({ cat, items: shopping.filter(s => s.cat === cat) }))
-    .filter(g => g.items.length > 0);
+    .filter(g => g.items.length > 0)
+    .filter(g => !activeCat || g.cat === activeCat);
 
   const onList     = new Set(shopping.map(s => s.name.toLowerCase()));
   const fridgeNames = new Set((fridge || []).map(i => i.name.toLowerCase()));
@@ -255,6 +258,20 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
             </div>
           )}
         </div>
+
+        {availCats.length > 1 && (
+          <div style={{
+            display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 18,
+            margin: '0 -20px 18px', padding: '0 20px', scrollbarWidth: 'none',
+          }}>
+            <Chip active={!activeCat} onClick={() => setActiveCat(null)}>All</Chip>
+            {availCats.map(c => (
+              <Chip key={c} active={activeCat === c} onClick={() => setActiveCat(activeCat === c ? null : c)}>
+                {c}
+              </Chip>
+            ))}
+          </div>
+        )}
 
         {shopping.length === 0 ? (
           <div style={{ marginTop: 6 }}>

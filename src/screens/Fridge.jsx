@@ -5,7 +5,7 @@ import {
   Header, Btn, Chip, Card, Sheet, StatusPill, ItemThumb, EmptyState, ghostBtn,
 } from '../ui';
 
-const CATS = ['Produce', 'Dairy', 'Protein', 'Pantry', 'Bakery', 'Drinks', 'Leftovers', 'Other'];
+const CATS = ['Fruit & Veg', 'Dairy', 'Protein', 'Pantry', 'Bakery', 'Drinks', 'Leftovers', 'Other'];
 const EXPIRY_PRESETS = [
   { label: 'Today',   days: 0  },
   { label: '3 days',  days: 3  },
@@ -88,7 +88,11 @@ function Section({ title, count, tone, children }) {
 }
 
 export default function FridgeScreen({ fridge, onOpenItem, onOpenAdd }) {
-  const sorted = [...fridge].sort((a, b) => a.days - b.days);
+  const [activeCat, setActiveCat] = useState(null);
+
+  const cats = [...new Set(fridge.map(i => i.cat))].sort();
+  const visible = activeCat ? fridge.filter(i => i.cat === activeCat) : fridge;
+  const sorted = [...visible].sort((a, b) => a.days - b.days);
   const red   = sorted.filter(i => i.days <= 0);
   const amber = sorted.filter(i => i.days > 0 && i.days <= 3);
   const green = sorted.filter(i => i.days > 3);
@@ -109,11 +113,25 @@ export default function FridgeScreen({ fridge, onOpenItem, onOpenAdd }) {
       />
 
       <div style={{ padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           <StatusPill tone="red"   label={`${red.length} need using`} />
           <StatusPill tone="amber" label={`${amber.length} use soon`} />
           <StatusPill tone="green" label={`${green.length} fresh`} />
         </div>
+
+        {cats.length > 1 && (
+          <div style={{
+            display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 18,
+            margin: '0 -20px 18px', padding: '0 20px', scrollbarWidth: 'none',
+          }}>
+            <Chip active={!activeCat} onClick={() => setActiveCat(null)}>All</Chip>
+            {cats.map(c => (
+              <Chip key={c} active={activeCat === c} onClick={() => setActiveCat(activeCat === c ? null : c)}>
+                {c}
+              </Chip>
+            ))}
+          </div>
+        )}
 
         {red.length   > 0 && <Section title="Use today" count={red.length}   tone="red"  >{rows(red)}</Section>}
         {amber.length > 0 && <Section title="Use soon"  count={amber.length} tone="amber">{rows(amber)}</Section>}
