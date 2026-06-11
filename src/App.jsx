@@ -121,6 +121,46 @@ function AuthedApp({ user }) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     return Math.round((new Date(dateStr) - today) / 86400000);
   }
+  function rowToSaved(r) {
+    return {
+      id: r.id, title: r.title, blurb: r.blurb,
+      uses: r.ingredients || [], steps: r.steps || [],
+      missing: r.missing || [], macros: r.macros || {},
+      prep: r.time_minutes, serves: r.servings,
+      tags: r.tags || [], expiringUsed: 0,
+    };
+  }
+
+  // ── Real-time sync ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('user-data')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'fridge_items', filter: `user_id=eq.${user.id}` },
+        ({ eventType, new: n, old: o }) => {
+          if (eventType === 'INSERT') setFridge(f => f.some(i => i.id === n.id) ? f : [...f, rowToItem(n)].sort((a, b) => a.days - b.days));
+          if (eventType === 'UPDATE') setFridge(f => f.map(i => i.id === n.id ? rowToItem(n) : i));
+          if (eventType === 'DELETE') setFridge(f => f.filter(i => i.id !== o.id));
+        }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'shopping_items', filter: `user_id=eq.${user.id}` },
+        ({ eventType, new: n, old: o }) => {
+          if (eventType === 'INSERT') setShopping(s => s.some(i => i.id === n.id) ? s : [...s, { ...n, cat: normCat(n.category), source: 'manual' }]);
+          if (eventType === 'UPDATE') setShopping(s => s.map(i => i.id === n.id ? { ...i, done: n.done } : i));
+          if (eventType === 'DELETE') setShopping(s => s.filter(i => i.id !== o.id));
+        }
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'saved_recipes', filter: `user_id=eq.${user.id}` },
+        ({ eventType, new: n, old: o }) => {
+          if (eventType === 'INSERT') setSaved(s => s.some(r => r.id === n.id) ? s : [rowToSaved(n), ...s]);
+          if (eventType === 'DELETE') setSaved(s => s.filter(r => r.id !== o.id));
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
   function dateFromDaysOffset(days) {
     const d = new Date(); d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + days);
