@@ -153,7 +153,6 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
 
   const remaining = shopping.filter(s => !s.done).length;
   const doneCount = shopping.length - remaining;
-  const allDone   = shopping.length > 0 && remaining === 0;
 
   const groups = CATEGORY_ORDER
     .map(cat => ({ cat, items: shopping.filter(s => s.cat === cat) }))
@@ -257,19 +256,11 @@ export default function ShoppingScreen({ fridge, shopping, onToggleShop, onAddSh
           )}
         </div>
 
-        {allDone ? (
+        {shopping.length === 0 ? (
           <div style={{ marginTop: 6 }}>
-            <Card pad={24} style={{ textAlign: 'center', background: 'var(--green-soft)', border: 'none' }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: 99, background: 'var(--green)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
-              }}>
-                <Icon name="check" size={28} color="#fff" strokeWidth={3} />
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 750, color: 'var(--green-ink)', marginBottom: 4 }}>All done</div>
-              <div style={{ fontSize: 14, color: 'var(--green-ink)', opacity: .8 }}>
-                Everything on your list is ticked off.
-              </div>
+            <Card pad={24} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>Your list is empty</div>
+              <div style={{ fontSize: 14, color: 'var(--ink-3)' }}>Add items above or generate from a recipe.</div>
             </Card>
           </div>
         ) : (
